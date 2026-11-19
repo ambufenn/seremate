@@ -11,6 +11,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useState } from 'react';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type {
   AssessmentResultDoc,
   ConversationThread,
@@ -21,6 +22,7 @@ import { SereMascot, type SereMood } from './SereMascot';
 
 interface DashboardViewProps {
   profile: UserProfile;
+  language: AppLanguage;
   conversations: ConversationThread[];
   latestAssessment: AssessmentResultDoc | null;
   onNavigate: (tab: SereMateTab) => void;
@@ -70,12 +72,14 @@ const MOOD_OPTIONS: Array<{
 
 export function DashboardView({
   profile,
+  language,
   conversations,
   latestAssessment,
   onNavigate,
   onStartNewChat,
   onOpenConversation,
 }: DashboardViewProps) {
+  const ui = getUiStrings(language);
   const [selectedMood, setSelectedMood] = useState<MoodId>('curious');
   const activeMood = MOOD_OPTIONS.find((m) => m.id === selectedMood) || MOOD_OPTIONS[1];
 
@@ -89,10 +93,10 @@ export function DashboardView({
               <SereMascot mood={activeMood.mascotMood} size="md" />
               <div className="text-center sm:text-left space-y-1">
                 <p className="text-xs font-semibold text-[#B44A14]">
-                  Hey, {profile.displayName} · Safe & Private Space
+                  {profile.displayName} · {ui.dashboard.greetingPrefix}
                 </p>
                 <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[#241F1B] leading-[1.16]">
-                  Hi! I&apos;m Sere, your companion.
+                  {ui.dashboard.heroTitle}
                 </h1>
                 <p className="text-sm text-[#5F554D] leading-relaxed">
                   {activeMood.response}
@@ -103,7 +107,7 @@ export function DashboardView({
             {/* Interactive Mood Check-in */}
             <div className="space-y-2.5">
               <p className="text-xs font-semibold text-[#5F554D]">
-                How are you feeling today?
+                {ui.dashboard.howFeeling}
               </p>
               <div className="flex flex-wrap gap-2">
                 {MOOD_OPTIONS.map((mood) => {
@@ -119,7 +123,7 @@ export function DashboardView({
                           : 'bg-[#FAF5EE] hover:bg-[#FFF0E5] border border-[#241F1B]/10 text-[#241F1B]'
                       }`}
                     >
-                      {mood.label}
+                      {ui.dashboard.moodLabels[mood.id]}
                     </button>
                   );
                 })}
@@ -134,7 +138,7 @@ export function DashboardView({
               className="min-h-[44px] inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#EA6A27] hover:bg-[#D45819] text-white text-sm font-semibold whitespace-nowrap transition-colors"
             >
               <MessageCircleHeart className="w-4 h-4" />
-              <span>Talk to Sere</span>
+              <span>{ui.dashboard.talkToSere}</span>
             </button>
             <button
               type="button"
@@ -142,7 +146,7 @@ export function DashboardView({
               className="min-h-[44px] inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#E5F2E9] hover:bg-[#D6EBDD] text-[#244D36] text-sm font-semibold whitespace-nowrap transition-colors"
             >
               <Baby className="w-4 h-4" />
-              <span>Pregnancy &amp; Safe Care</span>
+              <span>{ui.dashboard.pregnancyCare}</span>
             </button>
             <button
               type="button"
@@ -150,7 +154,7 @@ export function DashboardView({
               className="min-h-[44px] inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-[#EFEAFE] hover:bg-[#E4DCFD] text-[#3C2885] text-sm font-semibold whitespace-nowrap transition-colors"
             >
               <Users className="w-4 h-4" />
-              <span>Peer Activity</span>
+              <span>{ui.dashboard.peerActivity}</span>
             </button>
           </div>
         </div>
@@ -161,7 +165,7 @@ export function DashboardView({
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-xs font-semibold text-[#553CB5]">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Your Questions Deserve Care, Not Judgment</span>
+                <span>{ui.tagline}</span>
               </div>
               <h2 className="font-display text-xl font-semibold text-[#241F1B]">
                 Cozy, private &amp; educational
@@ -213,7 +217,7 @@ export function DashboardView({
               onClick={() => onNavigate('support')}
               className="min-h-[40px] px-4 py-2 rounded-2xl bg-[#FFFDF9] hover:bg-white text-[#244D36] text-xs font-semibold whitespace-nowrap shrink-0 transition-colors"
             >
-              Find Support
+              {ui.dashboard.findSupport}
             </button>
           </div>
         </div>
@@ -222,9 +226,9 @@ export function DashboardView({
       {/* Cozy Pastel Modules Grid */}
       <section className="space-y-4">
         <div>
-          <p className="text-xs font-semibold text-[#5F554D]">Explore at Your Own Pace</p>
+          <p className="text-xs font-semibold text-[#5F554D]">{ui.dashboard.exploreSub}</p>
           <h2 className="font-display text-2xl font-semibold text-[#241F1B] mt-0.5">
-            Choose what feels helpful right now
+            {ui.dashboard.exploreTitle}
           </h2>
         </div>
 

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type {
   ChatMessageDoc,
   ConversationThread,
@@ -31,6 +32,7 @@ import { SereMascot, type SereMood } from './SereMascot';
 
 interface CompanionViewProps {
   profile: UserProfile;
+  language: AppLanguage;
   isDemoMode?: boolean;
   conversations: ConversationThread[];
   activeConversationId: string | null;
@@ -46,15 +48,9 @@ interface CompanionViewProps {
   onDemoDeleteConversation?: (convId: string) => void;
 }
 
-const SUGGESTED_STARTERS = [
-  'I am worried my period is late and I am nervous to ask anyone.',
-  'How do I know if period cramps are normal or need a doctor?',
-  'Someone is pressuring me online for private photos—what can I do?',
-  'What happens during a first confidential clinic appointment?',
-];
-
 export function CompanionView({
   profile,
+  language,
   isDemoMode = false,
   conversations,
   activeConversationId,
@@ -69,10 +65,13 @@ export function CompanionView({
   onDemoUpdateConversation,
   onDemoDeleteConversation,
 }: CompanionViewProps) {
+  const ui = getUiStrings(language);
   const [messages, setMessages] = useState<ChatMessageDoc[]>([]);
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [optimisticUserText, setOptimisticUserText] = useState<string | null>(null);
   const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [latestSafetyBanner, setLatestSafetyBanner] = useState<string | null>(null);
   const [latestSafetyLevel, setLatestSafetyLevel] = useState<SafetyLevel>('routine');
   const [followUps, setFollowUps] = useState<string[]>([]);
@@ -148,33 +147,74 @@ export function CompanionView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, isSending]);
+  }, [messages, isSending, optimisticUserText]);
 
-  const createConversationAndSend = async (rawText: string) => {
+  const createConversationAndSend = async (
+    rawText: string,
+    options?: { isRetry?: boolean }
+  ) => {
     const trimmed = rawText.trim();
     if (!trimmed || isSending) return;
 
     setErrorBanner(null);
+    setLastFailedPrompt(null);
+    setFollowUps([]);
     setIsSending(true);
-    setInput('');
+    if (!options?.isRetry) {
+      setInput('');
+    }
+
+    const historyPayload = messages.slice(-6).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // Start Gemini request immediately without waiting on Firestore roundtrips
+    const chatPromise = fetch('/api/seremate/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: trimmed,
+        history: historyPayload,
+        ageBracket: profile.ageBracket,
+        preferredLanguage: language,
+      }),
+    });
 
     let convId = activeConversationId;
+    let userPersistPromise: Promise<void> = Promise.resolve();
 
-    try {
+    if (isDemoMode) {
       if (!convId) {
         const title = trimmed.slice(0, 65) + (trimmed.length > 65 ? '…' : '');
-        if (isDemoMode) {
-          convId = `demo-conv-${Date.now()}`;
-          onDemoCreateConversation?.({
-            id: convId,
-            userId: profile.uid,
-            title,
-            lastMessagePreview: trimmed.slice(0, 120),
-            safetyFlagged: false,
-          });
-          onSelectConversation(convId);
-        } else {
+        convId = `demo-conv-${Date.now()}`;
+        onDemoCreateConversation?.({
+          id: convId,
+          userId: profile.uid,
+          title,
+          lastMessagePreview: trimmed.slice(0, 120),
+          safetyFlagged: false,
+        });
+        onSelectConversation(convId);
+      }
+      if (!options?.isRetry) {
+        onDemoAppendMessage?.(convId, {
+          id: `demo-msg-u-${Date.now()}`,
+          conversationId: convId,
+          userId: profile.uid,
+          role: 'user',
+          content: trimmed.slice(0, 4000),
+          safetyLevel: 'routine',
+        });
+      }
+    } else {
+      if (!options?.isRetry) {
+        setOptimisticUserText(trimmed);
+      }
+      userPersistPromise = (async () => {
+        if (!convId) {
           const convPath = `users/${profile.uid}/conversations`;
+          const title = trimmed.slice(0, 65) + (trimmed.length > 65 ? '…' : '');
           try {
             const created = await addDoc(collection(db, convPath), {
               userId: profile.uid,
@@ -188,60 +228,58 @@ export function CompanionView({
             onSelectConversation(convId);
           } catch (err) {
             handleFirestoreError(err, OperationType.CREATE, convPath);
+            return;
           }
         }
-      }
-
-      const msgPath = `users/${profile.uid}/conversations/${convId}/messages`;
-
-      if (isDemoMode) {
-        onDemoAppendMessage?.(convId!, {
-          id: `demo-msg-u-${Date.now()}`,
-          conversationId: convId!,
-          userId: profile.uid,
-          role: 'user',
-          content: trimmed.slice(0, 4000),
-          safetyLevel: 'routine',
-        });
-      } else {
-        try {
-          await addDoc(collection(db, msgPath), {
-            conversationId: convId,
-            userId: profile.uid,
-            role: 'user',
-            content: trimmed.slice(0, 4000),
-            safetyLevel: 'routine',
-            createdAt: serverTimestamp(),
-          });
-        } catch (err) {
-          handleFirestoreError(err, OperationType.CREATE, msgPath);
+        if (!options?.isRetry) {
+          const msgPath = `users/${profile.uid}/conversations/${convId}/messages`;
+          try {
+            await addDoc(collection(db, msgPath), {
+              conversationId: convId,
+              userId: profile.uid,
+              role: 'user',
+              content: trimmed.slice(0, 4000),
+              safetyLevel: 'routine',
+              createdAt: serverTimestamp(),
+            });
+          } catch (err) {
+            handleFirestoreError(err, OperationType.CREATE, msgPath);
+          }
         }
-      }
+      })();
+    }
 
-      const historyPayload = messages.slice(-8).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+    try {
+      const apiRes = await chatPromise;
+      const data = (await apiRes.json().catch(() => ({}))) as {
+        error?: string;
+        reply?: string;
+        safetyLevel?: SafetyLevel;
+        safetyBanner?: string | null;
+        suggestedFollowUps?: string[];
+        recommendedGuidanceCategory?: string;
+      };
 
-      const apiRes = await fetch('/api/seremate/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: trimmed,
-          history: historyPayload,
-          ageBracket: profile.ageBracket,
-        }),
-      });
-
-      const data = await apiRes.json();
       if (!apiRes.ok) {
         throw new Error(data.error || 'Unable to receive a response from SereMate AI.');
       }
 
+      const finalReply = (data.reply || '').trim();
       const safetyLevel: SafetyLevel = data.safetyLevel || 'routine';
+      const safetyBanner: string | null = data.safetyBanner || null;
+      const nextFollowUps = Array.isArray(data.suggestedFollowUps) ? data.suggestedFollowUps : [];
+      const guidanceCategory = data.recommendedGuidanceCategory || 'General';
+
+      if (!finalReply.trim()) {
+        throw new Error('Maaf, respons Gemini kosong. Coba kirim pertanyaan sekali lagi ya.');
+      }
+
       setLatestSafetyLevel(safetyLevel);
-      setLatestSafetyBanner(data.safetyBanner || null);
-      setFollowUps(Array.isArray(data.suggestedFollowUps) ? data.suggestedFollowUps : []);
+      setLatestSafetyBanner(safetyBanner);
+      setFollowUps(nextFollowUps);
+
+      await userPersistPromise;
+      setOptimisticUserText(null);
 
       if (isDemoMode) {
         onDemoAppendMessage?.(convId!, {
@@ -249,21 +287,22 @@ export function CompanionView({
           conversationId: convId!,
           userId: profile.uid,
           role: 'assistant',
-          content: String(data.reply).slice(0, 4000),
+          content: finalReply.slice(0, 4000),
           safetyLevel,
         });
         onDemoUpdateConversation?.(
           convId!,
-          String(data.reply).slice(0, 180),
+          finalReply.slice(0, 180),
           safetyLevel !== 'routine'
         );
-      } else {
+      } else if (convId) {
+        const msgPath = `users/${profile.uid}/conversations/${convId}/messages`;
         try {
           await addDoc(collection(db, msgPath), {
             conversationId: convId,
             userId: profile.uid,
             role: 'assistant',
-            content: String(data.reply).slice(0, 4000),
+            content: finalReply.slice(0, 4000),
             safetyLevel,
             createdAt: serverTimestamp(),
           });
@@ -274,7 +313,7 @@ export function CompanionView({
         const convDocPath = `users/${profile.uid}/conversations/${convId}`;
         try {
           await updateDoc(doc(db, convDocPath), {
-            lastMessagePreview: String(data.reply).slice(0, 180),
+            lastMessagePreview: finalReply.slice(0, 180),
             safetyFlagged: safetyLevel !== 'routine',
             updatedAt: serverTimestamp(),
           });
@@ -285,7 +324,7 @@ export function CompanionView({
         try {
           await addDoc(collection(db, 'usage_events'), {
             eventType: 'chat_turn',
-            topicCategory: String(data.recommendedGuidanceCategory || 'General').slice(0, 80),
+            topicCategory: String(guidanceCategory).slice(0, 80),
             safetyTriggered: safetyLevel !== 'routine',
             createdAt: serverTimestamp(),
           });
@@ -294,6 +333,9 @@ export function CompanionView({
         }
       }
     } catch (err) {
+      await userPersistPromise.catch(() => undefined);
+      setOptimisticUserText(null);
+      setLastFailedPrompt(trimmed);
       setErrorBanner(err instanceof Error ? err.message : 'Unable to send message.');
     } finally {
       setIsSending(false);
@@ -338,9 +380,9 @@ export function CompanionView({
               <SereMascot mood={mascotMood} size="sm" />
               <div>
                 <h1 className="font-display text-xl font-semibold text-[#241F1B]">
-                  Ask Sere
+                  {ui.companion.title}
                 </h1>
-                <p className="text-xs text-[#5F554D]">Kind, private & caring</p>
+                <p className="text-xs text-[#5F554D]">{ui.companion.subtitle}</p>
               </div>
             </div>
             <button
@@ -354,7 +396,7 @@ export function CompanionView({
               className="min-h-[40px] inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-[#EA6A27] hover:bg-[#D45819] text-white text-xs font-semibold whitespace-nowrap transition-colors"
             >
               <MessageSquarePlus className="w-3.5 h-3.5" />
-              <span>New Chat</span>
+              <span>{ui.companion.newChat}</span>
             </button>
           </div>
 
@@ -440,25 +482,25 @@ export function CompanionView({
       {/* Main Conversational Panel */}
       <section className="lg:col-span-8 bg-[#FFFDF9] border border-[#241F1B]/10 rounded-3xl flex flex-col min-h-[540px] max-h-[78vh]">
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-          {messages.length === 0 ? (
+          {messages.length === 0 && !optimisticUserText ? (
             <div className="py-4 space-y-6">
               <div className="bg-[#FFF0E5]/75 border border-[#EA6A27]/15 rounded-3xl p-5 flex flex-col sm:flex-row items-center gap-4">
                 <SereMascot mood="encouraging" size="md" />
                 <div className="text-center sm:text-left space-y-1">
                   <p className="text-xs font-semibold text-[#B44A14]">
-                    Sere · Safe & Judgment-Free
+                    {ui.companion.safeTitle}
                   </p>
                   <h2 className="font-display text-2xl font-semibold text-[#241F1B]">
-                    What is on your mind today?
+                    {ui.companion.mindTitle}
                   </h2>
                   <p className="text-sm text-[#5F554D] leading-relaxed">
-                    Ask in your own words, or tap one of these gentle starting questions:
+                    {ui.companion.mindDesc}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {SUGGESTED_STARTERS.map((starter, idx) => {
+                {ui.companion.starters.map((starter, idx) => {
                   const tint =
                     idx % 3 === 0
                       ? 'bg-[#FFF0E5]/55 hover:bg-[#FFF0E5]'
@@ -480,36 +522,47 @@ export function CompanionView({
               </div>
             </div>
           ) : (
-            messages.map((msg) => {
-              const isUser = msg.role === 'user';
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
-                >
-                  {!isUser && <SereMascot mood="calm" size="xs" className="mb-1" />}
+            <>
+              {messages.map((msg) => {
+                const isUser = msg.role === 'user';
+                return (
                   <div
-                    className={`max-w-[88%] sm:max-w-[78%] rounded-3xl px-4 py-3.5 text-[15px] leading-relaxed ${
-                      isUser
-                        ? 'bg-[#EA6A27] text-white'
-                        : 'bg-[#FFF0E5]/75 border border-[#EA6A27]/15 text-[#241F1B]'
-                    }`}
+                    key={msg.id}
+                    className={`flex items-end gap-2.5 ${isUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    {!isUser && (
-                      <div className="flex items-center justify-between gap-3 mb-1">
-                        <span className="text-xs font-semibold text-[#B44A14]">Sere</span>
-                        {msg.safetyLevel !== 'routine' && (
-                          <span className="text-[11px] font-semibold text-[#553CB5]">
-                            Support Info Included
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="whitespace-pre-line">{msg.content}</div>
+                    {!isUser && <SereMascot mood="calm" size="xs" className="mb-1" />}
+                    <div
+                      className={`max-w-[88%] sm:max-w-[78%] rounded-3xl px-4 py-3.5 text-[15px] leading-relaxed ${
+                        isUser
+                          ? 'bg-[#EA6A27] text-white'
+                          : 'bg-[#FFF0E5]/75 border border-[#EA6A27]/15 text-[#241F1B]'
+                      }`}
+                    >
+                      {!isUser && (
+                        <div className="flex items-center justify-between gap-3 mb-1">
+                          <span className="text-xs font-semibold text-[#B44A14]">Sere</span>
+                          {msg.safetyLevel !== 'routine' && (
+                            <span className="text-[11px] font-semibold text-[#553CB5]">
+                              Support Info Included
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="whitespace-pre-line">{msg.content}</div>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+
+              {optimisticUserText &&
+                messages[messages.length - 1]?.content !== optimisticUserText && (
+                  <div className="flex items-end gap-2.5 justify-end">
+                    <div className="max-w-[88%] sm:max-w-[78%] rounded-3xl px-4 py-3.5 text-[15px] leading-relaxed bg-[#EA6A27] text-white">
+                      <div className="whitespace-pre-line">{optimisticUserText}</div>
+                    </div>
+                  </div>
+                )}
+            </>
           )}
 
           {latestSafetyBanner && (
@@ -554,7 +607,7 @@ export function CompanionView({
             <div className="flex items-center gap-2.5 pl-1">
               <SereMascot mood="thinking" size="xs" />
               <p className="text-xs font-medium text-[#5F554D]">
-                Sere is thinking carefully for you…
+                {ui.companion.replying}
               </p>
             </div>
           )}
@@ -562,13 +615,24 @@ export function CompanionView({
           {errorBanner && (
             <div
               role="alert"
-              className="rounded-2xl bg-[#FFF0E5] border border-[#EA6A27]/35 p-4 flex items-start gap-2.5 text-xs sm:text-sm text-[#7A2D15]"
+              className="rounded-2xl bg-[#FFF0E5] border border-[#EA6A27]/35 p-4 flex items-start justify-between gap-3 text-xs sm:text-sm text-[#7A2D15]"
             >
-              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="font-semibold">Companion Unavailable</p>
-                <p>{errorBanner}</p>
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold">Sere temporarily busy</p>
+                  <p>{errorBanner}</p>
+                </div>
               </div>
+              {lastFailedPrompt && (
+                <button
+                  type="button"
+                  onClick={() => void createConversationAndSend(lastFailedPrompt, { isRetry: true })}
+                  className="min-h-[36px] px-3 py-1.5 rounded-xl bg-[#EA6A27] hover:bg-[#D45819] text-white text-xs font-semibold whitespace-nowrap shrink-0 transition-colors"
+                >
+                  Retry
+                </button>
+              )}
             </div>
           )}
 
@@ -587,7 +651,7 @@ export function CompanionView({
             maxLength={2000}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Sere a question privately..."
+            placeholder={ui.companion.placeholder}
             aria-label="Ask Sere AI Companion"
             className="flex-1 min-h-[44px] px-4 py-2.5 rounded-2xl bg-[#FFFDF9] border border-[#241F1B]/12 text-sm text-[#241F1B] placeholder:text-[#8C8074] focus:outline-none focus:border-[#EA6A27]"
           />
@@ -597,7 +661,7 @@ export function CompanionView({
             className="min-h-[44px] px-4 py-2.5 rounded-2xl bg-[#EA6A27] hover:bg-[#D45819] disabled:opacity-45 text-white text-sm font-semibold inline-flex items-center gap-2 whitespace-nowrap transition-colors"
           >
             <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">Send</span>
+            <span className="hidden sm:inline">{ui.companion.send}</span>
           </button>
         </form>
       </section>

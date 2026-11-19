@@ -8,7 +8,9 @@ import {
   User,
   Users,
 } from 'lucide-react';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type { SereMateTab } from '../types/seremate';
+import { LanguageSelector } from './LanguageSelector';
 import { SereMateLogoMark } from './SereMascot';
 
 interface SereMateNavProps {
@@ -16,6 +18,8 @@ interface SereMateNavProps {
   onSelectTab: (tab: SereMateTab) => void;
   isAdmin: boolean;
   displayName: string;
+  language: AppLanguage;
+  onChangeLanguage: (lang: AppLanguage) => void;
 }
 
 export function SereMateNav({
@@ -23,22 +27,26 @@ export function SereMateNav({
   onSelectTab,
   isAdmin,
   displayName,
+  language,
+  onChangeLanguage,
 }: SereMateNavProps) {
+  const ui = getUiStrings(language);
+
   const navLinks: Array<{ id: SereMateTab; label: string }> = [
-    { id: 'dashboard', label: 'Home' },
-    { id: 'companion', label: 'Ask Sere' },
-    { id: 'community', label: 'Community' },
-    { id: 'pregnancy', label: 'Safe Care' },
-    { id: 'guidance', label: 'Guides' },
-    { id: 'support', label: 'Clinics' },
+    { id: 'dashboard', label: ui.nav.home },
+    { id: 'companion', label: ui.nav.askSere },
+    { id: 'community', label: ui.nav.community },
+    { id: 'pregnancy', label: ui.nav.safeCare },
+    { id: 'guidance', label: ui.nav.guides },
+    { id: 'support', label: ui.nav.clinics },
   ];
 
   const mobileTabs: Array<{ id: SereMateTab; label: string; icon: typeof Home }> = [
-    { id: 'dashboard', label: 'Home', icon: Home },
-    { id: 'companion', label: 'Ask Sere', icon: MessageCircleHeart },
-    { id: 'community', label: 'Community', icon: Users },
-    { id: 'pregnancy', label: 'Safe Care', icon: Baby },
-    { id: 'support', label: 'Clinics', icon: Stethoscope },
+    { id: 'dashboard', label: ui.nav.home, icon: Home },
+    { id: 'companion', label: ui.nav.askSere, icon: MessageCircleHeart },
+    { id: 'community', label: ui.nav.community, icon: Users },
+    { id: 'pregnancy', label: ui.nav.safeCare, icon: Baby },
+    { id: 'support', label: ui.nav.clinics, icon: Stethoscope },
   ];
 
   return (
@@ -102,6 +110,7 @@ export function SereMateNav({
 
           {/* Zone 3: Account / Utility Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            <LanguageSelector language={language} onChange={onChangeLanguage} compact />
             <button
               type="button"
               onClick={() => onSelectTab('history')}

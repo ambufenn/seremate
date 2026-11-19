@@ -25,11 +25,13 @@ import {
   WEEKLY_POLL_OPTIONS,
 } from '../data/communityData';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type { CommunityPostDoc, CommunityTopic } from '../types/seremate';
 import { SereMascot } from './SereMascot';
 
 interface CommunityViewProps {
   uid: string;
+  language: AppLanguage;
   isDemoMode?: boolean;
   communityPosts: CommunityPostDoc[];
   onAskCompanion: (prompt: string) => void;
@@ -71,6 +73,7 @@ function containsUnsafeOrPiiContent(text: string): string | null {
 
 export function CommunityView({
   uid,
+  language,
   isDemoMode = false,
   communityPosts,
   onAskCompanion,
@@ -79,6 +82,7 @@ export function CommunityView({
   onDemoHugPost,
   onDemoDeletePost,
 }: CommunityViewProps) {
+  const ui = getUiStrings(language);
   const [topicFilter, setTopicFilter] = useState<'All' | CommunityTopic>('All');
   const [joinedIds, setJoinedIds] = useState<string[]>(['act-wellness-challenge']);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
@@ -227,13 +231,13 @@ export function CommunityView({
           />
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-[#553CB5]">
-              Peer & Community Activity · Safe & Anonymous
+              {ui.community.badge}
             </p>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#241F1B]">
-              Kind circles & peer encouragement
+              {ui.community.title}
             </h1>
             <p className="text-sm text-[#453973] max-w-2xl leading-relaxed">
-              Join youth wellness challenges, send caring hugs, and share uplifting notes using a cute nickname—no real names or personal contact info ever shared.
+              {ui.community.subtitle}
             </p>
           </div>
         </div>

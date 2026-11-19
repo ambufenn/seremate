@@ -10,11 +10,13 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type { SereMateTab } from '../types/seremate';
 import { SereMascot } from './SereMascot';
 
 interface PregnancyCareViewProps {
   uid: string;
+  language: AppLanguage;
   onNavigate: (tab: SereMateTab) => void;
   onAskCompanion: (prompt: string) => void;
 }
@@ -56,9 +58,11 @@ const HEALTHY_HABITS = [
 
 export function PregnancyCareView({
   uid,
+  language,
   onNavigate,
   onAskCompanion,
 }: PregnancyCareViewProps) {
+  const ui = getUiStrings(language);
   const storageKey = `seremate_pregnancy_care_${uid}`;
 
   const [selectedPath, setSelectedPath] = useState<PregnancyPath>(() => {
@@ -120,13 +124,13 @@ export function PregnancyCareView({
           />
           <div className="space-y-1.5">
             <p className="text-xs font-semibold text-[#B44A14]">
-              Pregnancy Check &amp; Safe Care Companion
+              {ui.pregnancy.badge}
             </p>
             <h1 className="font-display text-3xl sm:text-4xl font-semibold text-[#241F1B]">
-              Are you pregnant right now? Please stay safe &amp; keep healthy.
+              {ui.pregnancy.title}
             </h1>
             <p className="text-sm text-[#5F554D] max-w-2xl leading-relaxed">
-              Whether you just saw a positive test, missed a period and feel nervous, or are learning for a friend—you deserve gentleness, privacy, and clear care.
+              {ui.pregnancy.subtitle}
             </p>
           </div>
         </div>

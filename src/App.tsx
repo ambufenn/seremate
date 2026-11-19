@@ -28,6 +28,12 @@ import { SupportNavigatorView } from './components/SupportNavigatorView';
 import { BASELINE_GUIDANCE_ARTICLES } from './data/guidanceLibrary';
 import { BASELINE_SUPPORT_RESOURCES } from './data/supportResources';
 import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import {
+  getLanguageMeta,
+  getStoredLanguage,
+  saveStoredLanguage,
+  type AppLanguage,
+} from './i18n/languages';
 import type {
   AssessmentResultDoc,
   ChatMessageDoc,
@@ -80,6 +86,14 @@ function SereMateAppShell() {
   const [activeTab, setActiveTab] = useState<SereMateTab>('dashboard');
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [pendingStarterPrompt, setPendingStarterPrompt] = useState<string | null>(null);
+  const [language, setLanguage] = useState<AppLanguage>(() => getStoredLanguage());
+
+  const handleChangeLanguage = (nextLang: AppLanguage) => {
+    setLanguage(nextLang);
+    saveStoredLanguage(nextLang);
+  };
+
+  const langMeta = getLanguageMeta(language);
 
   const [conversations, setConversations] = useState<ConversationThread[]>([]);
   const [assessments, setAssessments] = useState<AssessmentResultDoc[]>([]);
@@ -350,7 +364,15 @@ function SereMateAppShell() {
   }
 
   if (!firebaseUser && !isDemoMode) {
-    return <AuthPortal onStartDemo={handleStartDemo} />;
+    return (
+      <div dir={langMeta.dir || 'ltr'}>
+        <AuthPortal
+          onStartDemo={handleStartDemo}
+          language={language}
+          onChangeLanguage={handleChangeLanguage}
+        />
+      </div>
+    );
   }
 
   const effectiveIsAdmin = isDemoMode ? false : isAdmin;
@@ -399,12 +421,14 @@ function SereMateAppShell() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAF5EE] text-[#231F1D]">
+    <div dir={langMeta.dir || 'ltr'} className="min-h-screen flex flex-col bg-[#FAF5EE] text-[#231F1D]">
       <SereMateNav
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
         isAdmin={effectiveIsAdmin}
         displayName={effectiveProfile.displayName}
+        language={language}
+        onChangeLanguage={handleChangeLanguage}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 pb-24 lg:pb-12">
@@ -426,6 +450,7 @@ function SereMateAppShell() {
         {activeTab === 'dashboard' && (
           <DashboardView
             profile={effectiveProfile}
+            language={language}
             conversations={effectiveConversations}
             latestAssessment={effectiveAssessments[0] || null}
             onNavigate={handleSelectTab}
@@ -437,6 +462,7 @@ function SereMateAppShell() {
         {activeTab === 'companion' && (
           <CompanionView
             profile={effectiveProfile}
+            language={language}
             isDemoMode={isDemoMode}
             conversations={effectiveConversations}
             activeConversationId={activeConversationId}
@@ -465,6 +491,7 @@ function SereMateAppShell() {
         {activeTab === 'community' && (
           <CommunityView
             uid={effectiveProfile.uid}
+            language={language}
             isDemoMode={isDemoMode}
             communityPosts={isDemoMode ? demoCommunityPosts : communityPosts}
             onAskCompanion={(prompt) => handleStartNewChat(prompt)}
@@ -478,6 +505,7 @@ function SereMateAppShell() {
         {activeTab === 'pregnancy' && (
           <PregnancyCareView
             uid={effectiveProfile.uid}
+            language={language}
             onNavigate={handleSelectTab}
             onAskCompanion={(prompt) => handleStartNewChat(prompt)}
           />
@@ -517,6 +545,8 @@ function SereMateAppShell() {
         {activeTab === 'profile' && (
           <ProfileView
             profile={effectiveProfile}
+            language={language}
+            onChangeLanguage={handleChangeLanguage}
             isDemoMode={isDemoMode}
             emailVerified={isDemoMode ? true : Boolean(firebaseUser?.emailVerified)}
             conversations={effectiveConversations}

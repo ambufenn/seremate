@@ -4,9 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  formatFriendlyGeminiError,
   getConfiguredModel,
   isAiConfigured,
   runSereMateCompanion,
+  streamSereMateCompanion,
   type SereMateChatTurn,
 } from './server/agents/seremateEngine.ts';
 
@@ -30,12 +32,72 @@ async function startServer() {
     });
   });
 
+  app.post('/api/seremate/chat/stream', async (req, res) => {
+    const body = req.body as {
+      message?: string;
+      history?: SereMateChatTurn[];
+      ageBracket?: string;
+      preferredLanguage?: string;
+    };
+
+    const message = typeof body.message === 'string' ? body.message.trim() : '';
+    if (!message) {
+      res.status(400).json({ error: 'Please enter a message before sending.' });
+      return;
+    }
+    if (message.length > 2000) {
+      res.status(400).json({ error: 'Message is too long. Please keep it under 2,000 characters.' });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    const history = Array.isArray(body.history) ? body.history : [];
+    let closed = false;
+    req.on('close', () => {
+      closed = true;
+    });
+
+    try {
+      for await (const event of streamSereMateCompanion({
+        message,
+        history,
+        ageBracket: body.ageBracket,
+        preferredLanguage: body.preferredLanguage,
+      })) {
+        if (closed) break;
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+      }
+      if (!closed) {
+        res.end();
+      }
+    } catch (error) {
+      if (!closed) {
+        const friendly = formatFriendlyGeminiError(error);
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'error',
+            error: friendly.message,
+            code: friendly.code,
+            status: friendly.status,
+          })}\n\n`
+        );
+        res.end();
+      }
+    }
+  });
+
   app.post('/api/seremate/chat', async (req, res) => {
     try {
       const body = req.body as {
         message?: string;
         history?: SereMateChatTurn[];
         ageBracket?: string;
+        preferredLanguage?: string;
       };
 
       const message = typeof body.message === 'string' ? body.message.trim() : '';
@@ -53,26 +115,15 @@ async function startServer() {
         message,
         history,
         ageBracket: body.ageBracket,
+        preferredLanguage: body.preferredLanguage,
       });
 
       res.json(result);
     } catch (error) {
-      const err = error as { status?: number; code?: string; message?: string };
-      const status = typeof err?.status === 'number' && err.status >= 400 ? err.status : 500;
-      const rawMessage = err?.message || 'Unable to generate a response right now.';
-
-      let friendlyError = rawMessage;
-      if (rawMessage.includes('API_KEY_INVALID') || rawMessage.includes('PERMISSION_DENIED')) {
-        friendlyError =
-          'The configured Gemini API key was rejected. Please verify GEMINI_API_KEY in Settings > Secrets.';
-      } else if (rawMessage.includes('RESOURCE_EXHAUSTED') || status === 429) {
-        friendlyError =
-          'The AI service is temporarily busy (rate limit reached). Please wait a moment or browse Health Guidance and Support Resources.';
-      }
-
-      res.status(status).json({
-        error: friendlyError,
-        code: err?.code || String(status),
+      const friendly = formatFriendlyGeminiError(error);
+      res.status(friendly.status).json({
+        error: friendly.message,
+        code: friendly.code,
       });
     }
   });

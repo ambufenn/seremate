@@ -8,11 +8,15 @@ import { deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { CheckCircle2, KeyRound, LogOut, MailCheck, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import type { AppLanguage } from '../i18n/languages';
 import type { AgeBracket, ConversationThread, UserProfile } from '../types/seremate';
+import { LanguageSelector } from './LanguageSelector';
 import { PrivacyTermsModal } from './PrivacyTermsModal';
 
 interface ProfileViewProps {
   profile: UserProfile;
+  language: AppLanguage;
+  onChangeLanguage: (lang: AppLanguage) => void;
   isDemoMode?: boolean;
   emailVerified: boolean;
   conversations: ConversationThread[];
@@ -23,6 +27,8 @@ interface ProfileViewProps {
 
 export function ProfileView({
   profile,
+  language,
+  onChangeLanguage,
   isDemoMode = false,
   emailVerified,
   conversations,
@@ -187,6 +193,13 @@ export function ProfileView({
               <option value="guardian_educator">Parent / Guardian / Educator</option>
             </select>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <span className="block text-xs font-semibold text-[#231F1D]">
+            App &amp; AI Companion Language
+          </span>
+          <LanguageSelector language={language} onChange={onChangeLanguage} />
         </div>
 
         <div className="space-y-1.5">

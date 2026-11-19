@@ -22,7 +22,9 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { getUiStrings, type AppLanguage } from '../i18n/languages';
 import type { AgeBracket } from '../types/seremate';
+import { LanguageSelector } from './LanguageSelector';
 import { PrivacyTermsModal } from './PrivacyTermsModal';
 import { SereMascot, SereMateLogoMark } from './SereMascot';
 
@@ -64,9 +66,16 @@ function mapFirebaseAuthError(error: unknown): string {
 
 interface AuthPortalProps {
   onStartDemo: () => void;
+  language: AppLanguage;
+  onChangeLanguage: (lang: AppLanguage) => void;
 }
 
-export function AuthPortal({ onStartDemo }: AuthPortalProps) {
+export function AuthPortal({
+  onStartDemo,
+  language,
+  onChangeLanguage,
+}: AuthPortalProps) {
+  const ui = getUiStrings(language);
   const [mode, setMode] = useState<AuthMode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -240,16 +249,19 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
             SereMate
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setLegalSection('privacy');
-            setLegalModalOpen(true);
-          }}
-          className="text-xs sm:text-sm font-medium text-[#5F554D] hover:text-[#241F1B] whitespace-nowrap shrink-0"
-        >
-          Privacy & Safeguarding
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <LanguageSelector language={language} onChange={onChangeLanguage} compact />
+          <button
+            type="button"
+            onClick={() => {
+              setLegalSection('privacy');
+              setLegalModalOpen(true);
+            }}
+            className="text-xs sm:text-sm font-medium text-[#5F554D] hover:text-[#241F1B] whitespace-nowrap shrink-0"
+          >
+            Privacy &amp; Safeguarding
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
@@ -262,10 +274,10 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
                 Adolescent Health Companion · Ages 10–19
               </p>
               <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-[#241F1B] leading-[1.14]">
-                Hi! I&apos;m Sere.
+                {ui.auth.welcomeHi}
               </h1>
               <p className="text-[15px] text-[#5F554D] leading-relaxed">
-                Your warm, judgment-free companion. Ask reproductive health questions, check your needs, and find caring support at your own pace.
+                {ui.auth.welcomeSubtitle}
               </p>
             </div>
           </div>
@@ -298,10 +310,10 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
                   <h2 className="font-display text-xl font-semibold text-[#241F1B]">
-                    Try Instant Demo
+                    {ui.auth.demoTitle}
                   </h2>
                   <p className="text-xs text-[#5F554D] leading-relaxed">
-                    Jump straight in without creating an account, email, or password.
+                    {ui.auth.demoDesc}
                   </p>
                 </div>
                 <Sparkles className="w-5 h-5 text-[#EA6A27] shrink-0 mt-0.5" />
@@ -311,7 +323,7 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
                 onClick={onStartDemo}
                 className="w-full min-h-[48px] px-5 py-3 rounded-2xl bg-[#EA6A27] hover:bg-[#D45819] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
               >
-                <span>Enter Demo Without Login</span>
+                <span>{ui.auth.demoButton}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -319,7 +331,7 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
             <div className="relative flex items-center justify-center">
               <span className="border-t border-[#241F1B]/10 w-full" />
               <span className="bg-[#FFFDF9] px-3 text-[11px] font-medium text-[#8C8074] whitespace-nowrap">
-                or sign in to save your history
+                {ui.auth.orSignIn}
               </span>
               <span className="border-t border-[#241F1B]/10 w-full" />
             </div>
@@ -328,8 +340,8 @@ export function AuthPortal({ onStartDemo }: AuthPortalProps) {
             <div className="grid grid-cols-3 gap-1 p-1 bg-[#F3ECE1] rounded-2xl">
               {(
                 [
-                  { id: 'login', label: 'Sign In' },
-                  { id: 'register', label: 'Sign Up' },
+                  { id: 'login', label: ui.auth.signIn },
+                  { id: 'register', label: ui.auth.createAccount },
                   { id: 'reset', label: 'Reset' },
                 ] as const
               ).map((tab) => (

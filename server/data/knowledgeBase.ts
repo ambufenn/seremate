@@ -24,7 +24,14 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'tell anyone',
       'unprotected',
       'hcg',
-      'false negative'
+      'false negative',
+      'hamil',
+      'kehamilan',
+      'telat haid',
+      'telat mens',
+      'test pack',
+      'tespek',
+      'terlambat datang bulan'
     ]
   },
   {
@@ -50,7 +57,15 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'emergency contraception',
       'plan b',
       'clinic',
-      'worried'
+      'worried',
+      'takut',
+      'khawatir',
+      'panik',
+      'sendirian',
+      'orang tua',
+      'puskesmas',
+      'klinik',
+      'rahasia'
     ]
   },
   {
@@ -76,7 +91,13 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'relationship',
       'boundaries',
       'unsafe',
-      'no'
+      'no',
+      'pacar',
+      'dipaksa',
+      'batasan',
+      'hubungan',
+      'tidak nyaman',
+      'persetujuan'
     ]
   },
   {
@@ -100,7 +121,14 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'cycle',
       'tampon',
       'pad',
-      'spotting'
+      'spotting',
+      'haid',
+      'mens',
+      'menstruasi',
+      'datang bulan',
+      'kram',
+      'nyeri haid',
+      'pembalut'
     ]
   },
   {
@@ -124,7 +152,12 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'voice',
       'breasts',
       'hormones',
-      'teen'
+      'teen',
+      'pubertas',
+      'remaja',
+      'jerawat',
+      'tumbuh',
+      'perubahan tubuh'
     ]
   },
   {
@@ -149,7 +182,12 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'blackmail',
       'social media',
       'privacy',
-      'dm'
+      'dm',
+      'foto',
+      'privasi',
+      'ancaman',
+      'diancam',
+      'disebar'
     ]
   },
   {
@@ -174,7 +212,13 @@ export const KNOWLEDGE_BASE: KnowledgeChunk[] = [
       'pill',
       'protection',
       'discharge',
-      'itching'
+      'itching',
+      'kondom',
+      'kb',
+      'keputihan',
+      'infeksi',
+      'gatal',
+      'kontrasepsi'
     ]
   }
 ];

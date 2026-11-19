@@ -1,0 +1,433 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core identity & validation helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerifiedAdminEmail() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'fenirathings@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isVerifiedAdminEmail() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprints
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'email', 'ageBracket', 'role',
+        'privacyOptOutTraining', 'acceptedPrivacyPolicy', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'displayName', 'email', 'ageBracket', 'role',
+        'privacyOptOutTraining', 'acceptedPrivacyPolicy', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.uid == request.auth.uid
+      && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80
+      && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+      && data.ageBracket in ['10-12', '13-15', '16-17', '18-19', 'guardian_educator']
+      && data.role == 'user'
+      && data.privacyOptOutTraining is bool
+      && data.acceptedPrivacyPolicy is bool && data.acceptedPrivacyPolicy == true
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidConversation(data) {
+      return data.keys().hasAll([
+        'userId', 'title', 'lastMessagePreview', 'safetyFlagged', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'userId', 'title', 'lastMessagePreview', 'safetyFlagged', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.userId)
+      && data.userId == request.auth.uid
+      && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+      && data.lastMessagePreview is string && data.lastMessagePreview.size() <= 240
+      && data.safetyFlagged is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data, conversationId) {
+      return data.keys().hasAll([
+        'conversationId', 'userId', 'role', 'content', 'safetyLevel', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'conversationId', 'userId', 'role', 'content', 'safetyLevel', 'createdAt'
+      ])
+      && isValidId(data.conversationId)
+      && data.conversationId == conversationId
+      && isValidId(data.userId)
+      && data.userId == request.auth.uid
+      && data.role in ['user', 'assistant']
+      && data.content is string && data.content.size() >= 1 && data.content.size() <= 4000
+      && data.safetyLevel in ['routine', 'elevated', 'urgent']
+      && data.createdAt is timestamp;
+    }
+
+    function isValidAssessment(data) {
+      return data.keys().hasAll([
+        'userId', 'primaryCategory', 'supportLevel', 'summaryNote', 'recommendedTopics', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'userId', 'primaryCategory', 'supportLevel', 'summaryNote', 'recommendedTopics', 'createdAt'
+      ])
+      && isValidId(data.userId)
+      && data.userId == request.auth.uid
+      && data.primaryCategory is string && data.primaryCategory.size() >= 1 && data.primaryCategory.size() <= 80
+      && data.supportLevel in ['informational', 'guided_support', 'priority_care']
+      && data.summaryNote is string && data.summaryNote.size() >= 1 && data.summaryNote.size() <= 600
+      && data.recommendedTopics is list && data.recommendedTopics.size() >= 1 && data.recommendedTopics.size() <= 6
+      && data.recommendedTopics[0] is string
+      && data.createdAt is timestamp;
+    }
+
+    function isValidGuidanceArticle(data) {
+      return data.keys().hasAll([
+        'title', 'category', 'summary', 'bodyParagraphs', 'whenToSeekHelp',
+        'ageRange', 'published', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'title', 'category', 'summary', 'bodyParagraphs', 'whenToSeekHelp',
+        'ageRange', 'published', 'createdAt', 'updatedAt'
+      ])
+      && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+      && data.category in [
+        'Puberty & Growth',
+        'Menstrual Health',
+        'Pregnancy Awareness',
+        'Sexual & Reproductive Health',
+        'Healthy Relationships & Boundaries',
+        'When & Where to Get Help'
+      ]
+      && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 400
+      && data.bodyParagraphs is list && data.bodyParagraphs.size() >= 1 && data.bodyParagraphs.size() <= 8
+      && data.bodyParagraphs[0] is string
+      && data.whenToSeekHelp is string && data.whenToSeekHelp.size() >= 1 && data.whenToSeekHelp.size() <= 500
+      && data.ageRange is string && data.ageRange.size() >= 1 && data.ageRange.size() <= 40
+      && data.published is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidHealthcareResource(data) {
+      return data.keys().hasAll([
+        'name', 'category', 'services', 'description', 'locationLabel',
+        'hours', 'costInfo', 'contactValue', 'verificationNote', 'active', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'name', 'category', 'services', 'description', 'locationLabel',
+        'hours', 'costInfo', 'contactValue', 'verificationNote', 'active', 'createdAt', 'updatedAt'
+      ])
+      && data.name is string && data.name.size() >= 1 && data.name.size() <= 140
+      && data.category in ['Youth Clinic', '24/7 Helpline', 'Community Health', 'Counseling & Advocacy']
+      && data.services is list && data.services.size() >= 1 && data.services.size() <= 8
+      && data.services[0] is string
+      && data.description is string && data.description.size() >= 1 && data.description.size() <= 500
+      && data.locationLabel is string && data.locationLabel.size() >= 1 && data.locationLabel.size() <= 180
+      && data.hours is string && data.hours.size() >= 1 && data.hours.size() <= 120
+      && data.costInfo is string && data.costInfo.size() >= 1 && data.costInfo.size() <= 120
+      && data.contactValue is string && data.contactValue.size() >= 1 && data.contactValue.size() <= 160
+      && data.verificationNote is string && data.verificationNote.size() >= 1 && data.verificationNote.size() <= 180
+      && data.active is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidSafetyReport(data) {
+      return data.keys().hasAll([
+        'reporterUid', 'category', 'relatedTopic', 'description',
+        'status', 'adminNotes', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'reporterUid', 'category', 'relatedTopic', 'description',
+        'status', 'adminNotes', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.reporterUid)
+      && data.category in ['safety_concern', 'misinformation', 'outdated_resource', 'platform_feedback']
+      && data.relatedTopic is string && data.relatedTopic.size() >= 1 && data.relatedTopic.size() <= 120
+      && data.description is string && data.description.size() >= 5 && data.description.size() <= 1000
+      && data.status in ['open', 'reviewing', 'resolved']
+      && data.adminNotes is string && data.adminNotes.size() <= 600
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidUsageEvent(data) {
+      return data.keys().hasAll(['eventType', 'topicCategory', 'safetyTriggered', 'createdAt'])
+      && data.keys().hasOnly(['eventType', 'topicCategory', 'safetyTriggered', 'createdAt'])
+      && data.eventType in ['chat_turn', 'assessment_completed', 'guidance_viewed', 'support_viewed']
+      && data.topicCategory is string && data.topicCategory.size() >= 1 && data.topicCategory.size() <= 80
+      && data.safetyTriggered is bool
+      && data.createdAt is timestamp;
+    }
+
+    function isValidCommunityPost(data) {
+      return data.keys().hasAll([
+        'authorUid', 'authorAlias', 'topic', 'message',
+        'hugsCount', 'approved', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'authorUid', 'authorAlias', 'topic', 'message',
+        'hugsCount', 'approved', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.authorUid)
+      && data.authorAlias is string && data.authorAlias.size() >= 1 && data.authorAlias.size() <= 40
+      && data.topic in [
+        'Encouragement',
+        'Period Health',
+        'Pregnancy Worry',
+        'Boundaries & Consent',
+        'Wellness Habits'
+      ]
+      && data.message is string && data.message.size() >= 5 && data.message.size() <= 360
+      && data.hugsCount is number && data.hugsCount >= 0 && data.hugsCount <= 1000000
+      && data.approved is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    // Admin registry (read-only for owner check, managed externally)
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+
+    // Private User Profiles (Strict PII isolation: owner only)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().role == existing().role
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'ageBracket', 'privacyOptOutTraining', 'acceptedPrivacyPolicy', 'updatedAt'
+        ]);
+      allow delete: if false;
+
+      // Private Conversations (Strict owner isolation; admins DENIED by default)
+      match /conversations/{conversationId} {
+        allow get: if isValidId(userId) && isValidId(conversationId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(conversationId)
+          && isOwner(userId)
+          && isValidConversation(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId)
+          && isValidId(conversationId)
+          && isOwner(userId)
+          && isValidConversation(incoming())
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly([
+            'title', 'lastMessagePreview', 'safetyFlagged', 'updatedAt'
+          ]);
+        allow delete: if isValidId(userId) && isValidId(conversationId) && isOwner(userId);
+
+        // Private Conversation Messages (Master Gate verifying parent conversation ownership)
+        match /messages/{messageId} {
+          allow get: if isValidId(userId)
+            && isValidId(conversationId)
+            && isValidId(messageId)
+            && isOwner(userId)
+            && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.userId == request.auth.uid;
+          allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+          allow create: if isValidId(userId)
+            && isValidId(conversationId)
+            && isValidId(messageId)
+            && isOwner(userId)
+            && isValidChatMessage(incoming(), conversationId)
+            && incoming().createdAt == request.time
+            && exists(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId))
+            && get(/databases/$(database)/documents/users/$(userId)/conversations/$(conversationId)).data.userId == request.auth.uid;
+          allow update: if false;
+          allow delete: if isValidId(userId) && isValidId(conversationId) && isValidId(messageId) && isOwner(userId);
+        }
+      }
+
+      // Private Risk & Needs Assessments (Owner only)
+      match /assessments/{assessmentId} {
+        allow get: if isValidId(userId) && isValidId(assessmentId) && isOwner(userId);
+        allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+        allow create: if isValidId(userId)
+          && isValidId(assessmentId)
+          && isOwner(userId)
+          && isValidAssessment(incoming())
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isValidId(userId) && isValidId(assessmentId) && isOwner(userId);
+      }
+    }
+
+    // Educational Health Guidance Library
+    match /guidance_articles/{articleId} {
+      allow get: if isValidId(articleId) && isSignedIn() && (existing().published == true || isAdmin());
+      allow list: if isSignedIn() && (resource.data.published == true || isVerifiedAdminEmail());
+      allow create: if isValidId(articleId)
+        && isAdmin()
+        && isValidGuidanceArticle(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(articleId)
+        && isAdmin()
+        && isValidGuidanceArticle(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'title', 'category', 'summary', 'bodyParagraphs', 'whenToSeekHelp',
+          'ageRange', 'published', 'updatedAt'
+        ]);
+      allow delete: if isValidId(articleId) && isAdmin();
+    }
+
+    // Verified Healthcare Resources Directory
+    match /healthcare_resources/{resourceId} {
+      allow get: if isValidId(resourceId) && isSignedIn() && (existing().active == true || isAdmin());
+      allow list: if isSignedIn() && (resource.data.active == true || isVerifiedAdminEmail());
+      allow create: if isValidId(resourceId)
+        && isAdmin()
+        && isValidHealthcareResource(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(resourceId)
+        && isAdmin()
+        && isValidHealthcareResource(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'category', 'services', 'description', 'locationLabel',
+          'hours', 'costInfo', 'contactValue', 'verificationNote', 'active', 'updatedAt'
+        ]);
+      allow delete: if isValidId(resourceId) && isAdmin();
+    }
+
+    // Safety & Content Reports
+    match /safety_reports/{reportId} {
+      allow get: if isValidId(reportId) && isSignedIn() && (
+        existing().reporterUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.reporterUid == request.auth.uid || isVerifiedAdminEmail()
+      );
+      allow create: if isValidId(reportId)
+        && isSignedIn()
+        && isValidSafetyReport(incoming())
+        && incoming().reporterUid == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().adminNotes == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(reportId)
+        && isAdmin()
+        && isValidSafetyReport(incoming())
+        && existing().status != 'resolved'
+        && incoming().reporterUid == existing().reporterUid
+        && incoming().category == existing().category
+        && incoming().relatedTopic == existing().relatedTopic
+        && incoming().description == existing().description
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNotes', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // De-identified Aggregated Analytics Events
+    match /usage_events/{eventId} {
+      allow get: if isValidId(eventId) && isAdmin();
+      allow list: if isVerifiedAdminEmail();
+      allow create: if isValidId(eventId)
+        && isSignedIn()
+        && isValidUsageEvent(incoming())
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // Peer & Community Encouragement Wall (No PII; alias-only; +1 hug reaction)
+    match /community_posts/{postId} {
+      allow get: if isValidId(postId) && isSignedIn() && (
+        existing().approved == true || existing().authorUid == request.auth.uid || isAdmin()
+      );
+      allow list: if isSignedIn() && (
+        resource.data.approved == true || resource.data.authorUid == request.auth.uid || isVerifiedAdminEmail()
+      );
+      allow create: if isValidId(postId)
+        && isSignedIn()
+        && isValidCommunityPost(incoming())
+        && incoming().authorUid == request.auth.uid
+        && incoming().hugsCount == 0
+        && incoming().approved == true
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(postId)
+        && isSignedIn()
+        && isValidCommunityPost(incoming())
+        && incoming().authorUid == existing().authorUid
+        && incoming().authorAlias == existing().authorAlias
+        && incoming().topic == existing().topic
+        && incoming().message == existing().message
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            existing().approved == true
+            && incoming().approved == existing().approved
+            && incoming().hugsCount == existing().hugsCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['hugsCount', 'updatedAt'])
+          )
+          ||
+          (
+            isAdmin()
+            && incoming().hugsCount == existing().hugsCount
+            && incoming().diff(existing()).affectedKeys().hasOnly(['approved', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(postId) && isSignedIn() && (
+        existing().authorUid == request.auth.uid || isAdmin()
+      );
+    }
+  }
+}

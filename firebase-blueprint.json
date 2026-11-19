@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private adolescent user account profile and privacy preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "email": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "ageBracket": { "type": "string", "enum": ["10-12", "13-15", "16-17", "18-19", "guardian_educator"] },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "privacyOptOutTraining": { "type": "boolean" },
+        "acceptedPrivacyPolicy": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "ageBracket", "role", "privacyOptOutTraining", "acceptedPrivacyPolicy", "createdAt", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Private AI Health Companion conversation thread belonging strictly to a single user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "lastMessagePreview": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "safetyFlagged": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "lastMessagePreview", "safetyFlagged", "createdAt", "updatedAt"]
+    },
+    "ChatMessageRecord": {
+      "title": "ChatMessageRecord",
+      "description": "Individual message turn inside a user's private conversation.",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "role": { "type": "string", "enum": ["user", "assistant"] },
+        "content": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "safetyLevel": { "type": "string", "enum": ["routine", "elevated", "urgent"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["conversationId", "userId", "role", "content", "safetyLevel", "createdAt"]
+    },
+    "AssessmentRecord": {
+      "title": "AssessmentRecord",
+      "description": "Private Risk & Needs self-assessment guidance result.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "primaryCategory": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "supportLevel": { "type": "string", "enum": ["informational", "guided_support", "priority_care"] },
+        "summaryNote": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "recommendedTopics": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "primaryCategory", "supportLevel", "summaryNote", "recommendedTopics", "createdAt"]
+    },
+    "GuidanceArticle": {
+      "title": "GuidanceArticle",
+      "description": "Structured educational reproductive health article managed by administrators.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "category": { "type": "string", "enum": ["Puberty & Growth", "Menstrual Health", "Pregnancy Awareness", "Sexual & Reproductive Health", "Healthy Relationships & Boundaries", "When & Where to Get Help"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "bodyParagraphs": { "type": "array" },
+        "whenToSeekHelp": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "ageRange": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "published": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "summary", "bodyParagraphs", "whenToSeekHelp", "ageRange", "published", "createdAt", "updatedAt"]
+    },
+    "HealthcareResource": {
+      "title": "HealthcareResource",
+      "description": "Verified or clearly labeled healthcare support service listing.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "category": { "type": "string", "enum": ["Youth Clinic", "24/7 Helpline", "Community Health", "Counseling & Advocacy"] },
+        "services": { "type": "array" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "locationLabel": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "hours": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "costInfo": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "contactValue": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "verificationNote": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "category", "services", "description", "locationLabel", "hours", "costInfo", "contactValue", "verificationNote", "active", "createdAt", "updatedAt"]
+    },
+    "SafetyReport": {
+      "title": "SafetyReport",
+      "description": "User-submitted safety or content accuracy report reviewed by authorized administrators.",
+      "type": "object",
+      "properties": {
+        "reporterUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "category": { "type": "string", "enum": ["safety_concern", "misinformation", "outdated_resource", "platform_feedback"] },
+        "relatedTopic": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "description": { "type": "string", "minLength": 5, "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["open", "reviewing", "resolved"] },
+        "adminNotes": { "type": "string", "minLength": 0, "maxLength": 600 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterUid", "category", "relatedTopic", "description", "status", "adminNotes", "createdAt", "updatedAt"]
+    },
+    "UsageEvent": {
+      "title": "UsageEvent",
+      "description": "De-identified, aggregated usage metric without PII or conversation text.",
+      "type": "object",
+      "properties": {
+        "eventType": { "type": "string", "enum": ["chat_turn", "assessment_completed", "guidance_viewed", "support_viewed"] },
+        "topicCategory": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "safetyTriggered": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["eventType", "topicCategory", "safetyTriggered", "createdAt"]
+    },
+    "CommunityPost": {
+      "title": "CommunityPost",
+      "description": "Moderated, anonymous-by-alias peer encouragement note or community reflection without PII.",
+      "type": "object",
+      "properties": {
+        "authorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorAlias": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "topic": { "type": "string", "enum": ["Encouragement", "Period Health", "Pregnancy Worry", "Boundaries & Consent", "Wellness Habits"] },
+        "message": { "type": "string", "minLength": 5, "maxLength": 360 },
+        "hugsCount": { "type": "number" },
+        "approved": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["authorUid", "authorAlias", "topic", "message", "hugsCount", "approved", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user account profile and settings; readable and writable only by the owning user."
+    },
+    "/users/{userId}/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Private AI companion conversations strictly isolated to the owning user."
+    },
+    "/users/{userId}/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessageRecord" },
+      "description": "Private chat message turns owned strictly by the user."
+    },
+    "/users/{userId}/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/AssessmentRecord" },
+      "description": "Private self-assessment results owned strictly by the user."
+    },
+    "/guidance_articles/{articleId}": {
+      "schema": { "$ref": "#/entities/GuidanceArticle" },
+      "description": "Educational health guidance articles readable by signed-in users and managed by admins."
+    },
+    "/healthcare_resources/{resourceId}": {
+      "schema": { "$ref": "#/entities/HealthcareResource" },
+      "description": "Healthcare directory listings readable by signed-in users and managed by admins."
+    },
+    "/safety_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/SafetyReport" },
+      "description": "Safety and content reports submitted by users and triaged by admins."
+    },
+    "/usage_events/{eventId}": {
+      "schema": { "$ref": "#/entities/UsageEvent" },
+      "description": "De-identified aggregated usage metrics created on interaction and read by admins."
+    },
+    "/community_posts/{postId}": {
+      "schema": { "$ref": "#/entities/CommunityPost" },
+      "description": "Anonymous-alias peer encouragement wall readable by signed-in users, moderated by admins, with safe +1 hug reactions."
+    }
+  }
+}
